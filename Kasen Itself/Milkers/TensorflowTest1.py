@@ -19,7 +19,12 @@ import logging
 import pickle
 from collections import namedtuple
 from queue import Queue
-
+import jupyterlab
+import hashlib
+import logging
+import tkinter as tk
+from abc import ABC, abstractmethod
+from tkinter import ttk
 # ------------------------- Logger Class -------------------------
 class Logger:
     def __init__(self, log_file="ai_system.log"):
@@ -367,4 +372,242 @@ if __name__ == "__main__":
     rl_agent.learn()
     rl_agent.evaluate()
 
+# ---------- Second-Hand Main Components -----------
 
+# --- AI Agent Classes ---
+class BaseAgent(ABC):
+    def __init__(self, state_dim, action_dim, config):
+        self.state_dim = state_dim
+        self.action_dim = action_dim
+        self.config = config
+
+    @abstractmethod
+    def act(self, state):
+        pass
+
+    @abstractmethod
+    def learn(self, experience):
+        pass
+
+class DQNAgent(BaseAgent):
+    def act(self, state):
+        return 0  # Dummy action
+
+    def learn(self, experience):
+        pass  # Learning logic
+
+class PPOAgent(BaseAgent):
+    def act(self, state):
+        return 0
+
+    def learn(self, experience):
+        pass
+
+# --- Datametric Layer ---
+class MetricsCollector:
+    def __init__(self):
+        self.data = []
+
+    def log(self, step, reward, loss, epsilon):
+        self.data.append({
+            "step": step,
+            "reward": reward,
+            "loss": loss,
+            "epsilon": epsilon,
+            "timestamp": time.time()
+        })
+
+    def export(self, filename="metrics.csv"):
+        df = pd.DataFrame(self.data)
+        df.to_csv(filename, index=False)
+
+    def get_dataframe(self):
+        return pd.DataFrame(self.data)
+
+# --- Response Classes ---
+class Response:
+    def __init__(self, status, message, data=None):
+        self.status = status
+        self.message = message
+        self.data = data
+
+class SuccessResponse(Response):
+    def __init__(self, message, data=None):
+        super().__init__('success', message, data)
+
+class ErrorResponse(Response):
+    def __init__(self, message):
+        super().__init__('error', message)
+
+# --- User Availability ---
+class UserAvailability:
+    @staticmethod
+    def is_active():
+        return True
+
+    @staticmethod
+    def get_last_active():
+        return datetime.datetime.now().isoformat()
+
+# --- GUI Components ---
+class HyperparameterTuner(tk.Frame):
+    def __init__(self, master, callback):
+        super().__init__(master)
+        self.learning_rate = tk.DoubleVar(value=0.001)
+        self.discount = tk.DoubleVar(value=0.99)
+        self.epsilon = tk.DoubleVar(value=1.0)
+
+        ttk.Label(self, text="Learning Rate").pack()
+        ttk.Scale(self, variable=self.learning_rate, from_=0.0001, to=1.0).pack()
+
+        ttk.Label(self, text="Discount Factor").pack()
+        ttk.Scale(self, variable=self.discount, from_=0.1, to=1.0).pack()
+
+        ttk.Label(self, text="Epsilon").pack()
+        ttk.Scale(self, variable=self.epsilon, from_=0.0, to=1.0).pack()
+
+        ttk.Button(self, text="Apply", command=lambda: callback({
+            "lr": self.learning_rate.get(),
+            "discount": self.discount.get(),
+            "epsilon": self.epsilon.get()
+        })).pack()
+
+class MetricsViewer(tk.Frame):
+    def __init__(self, master, metrics_collector):
+        super().__init__(master)
+        self.metrics_collector = metrics_collector
+        self.label = ttk.Label(self, text="No data yet.")
+        self.label.pack()
+
+    def refresh(self):
+        df = self.metrics_collector.get_dataframe()
+        if not df.empty:
+            self.label.config(text=str(df.tail(1)))
+
+# --- Main Application ---
+def on_apply(params):
+    print("Applied hyperparameters:", params)
+    # In a real app, update the AI agent with these parameters
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    root.title("AI Tuner Interface")
+
+    metrics = MetricsCollector()
+    tuner = HyperparameterTuner(root, on_apply)
+    viewer = MetricsViewer(root, metrics)
+
+    tuner.pack(side="left", fill="y", padx=10, pady=10)
+    viewer.pack(side="right", fill="both", expand=True, padx=10, pady=10)
+
+    root.mainloop()
+# ------------------------- Advanced Extensions -------------------------
+
+# 1. Model Checkpointing
+class ModelCheckpoint:
+    def __init__(self, model, checkpoint_dir="checkpoints"):
+        self.model = model
+        self.checkpoint_dir = checkpoint_dir
+        os.makedirs(checkpoint_dir, exist_ok=True)
+
+    def save(self, epoch):
+        self.model.save(os.path.join(self.checkpoint_dir, f"model_epoch_{epoch}.h5"))
+
+# 2. Learning Rate Scheduler
+class AdaptiveLRScheduler:
+    def __init__(self, optimizer, factor=0.5, patience=3):
+        self.lr_scheduler = tf.keras.callbacks.ReduceLROnPlateau(
+            monitor='loss', factor=factor, patience=patience, verbose=1
+        )
+
+    def get_scheduler(self):
+        return self.lr_scheduler
+
+# 3. Model Explainability
+import shap
+class Explainability:
+    def __init__(self, model):
+        self.model = model
+
+    def explain(self, data):
+        explainer = shap.Explainer(self.model, data)
+        shap_values = explainer(data)
+        shap.plots.beeswarm(shap_values)
+
+# 4. Model Versioning
+class ModelVersioning:
+    def __init__(self, base_dir="models"):
+        self.base_dir = base_dir
+        os.makedirs(base_dir, exist_ok=True)
+
+    def save_version(self, model, version_name):
+        path = os.path.join(self.base_dir, version_name)
+        model.save(path)
+
+# 5. Online Learning
+class OnlineLearner:
+    def __init__(self, model):
+        self.model = model
+
+    def update(self, new_data, new_labels):
+        self.model.fit(new_data, new_labels, epochs=1, verbose=0)
+
+# 6. Federated Learning Stub
+class FederatedClient:
+    def __init__(self, model):
+        self.model = model
+
+    def get_weights(self):
+        return self.model.get_weights()
+
+    def set_weights(self, weights):
+        self.model.set_weights(weights)
+
+    def train(self, data, labels):
+        self.model.fit(data, labels, epochs=1)
+
+# 7. Environment Simulation
+class SimulatedEnvironment:
+    def __init__(self, state_space, action_space):
+        self.state_space = state_space
+        self.action_space = action_space
+
+    def reset(self):
+        return np.random.rand(self.state_space)
+
+    def step(self, action):
+        next_state = np.random.rand(self.state_space)
+        reward = np.random.rand()
+        done = random.choice([True, False])
+        return next_state, reward, done, {}
+
+# 8. Multi-Agent System Base
+class MultiAgentSystem:
+    def __init__(self, agents):
+        self.agents = agents
+
+    def step_all(self, states):
+        actions = [agent.act(state) for agent, state in zip(self.agents, states)]
+        return actions
+
+# 9. Anomaly Detection
+from sklearn.ensemble import IsolationForest
+class AnomalyDetector:
+    def __init__(self):
+        self.model = IsolationForest(contamination=0.1)
+
+    def fit(self, data):
+        self.model.fit(data)
+
+    def predict(self, data):
+        return self.model.predict(data)
+
+# 10. Scheduled Retraining
+import sched
+class Scheduler:
+    def __init__(self):
+        self.scheduler = sched.scheduler(time.time, time.sleep)
+
+    def schedule_retraining(self, delay, function, args=()):
+        self.scheduler.enter(delay, 1, function, argument=args)
+        threading.Thread(target=self.scheduler.run).start()
